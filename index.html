@@ -1,0 +1,720 @@
+<!-- UK Rental Viewing Planner — minimal rebuild -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viewings · 看房</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --canvas:#F4F5F6;
+  --surface:#FFFFFF;
+  --surface-2:#F0F1F3;
+  --ink:#17191C;
+  --ink-2:#585D64;
+  --muted:#9298A0;
+  --line:#E7E9EC;
+  --line-2:#DDE0E4;
+  --confirmed:#1E9E62;
+  --pending:#E1544B;
+  --contacted:#4C6FE7;
+  --viewed:#A0A6AD;
+  --tint-clash:#FBEDEC;
+  --sans:"Manrope","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--canvas);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+button{font-family:inherit;cursor:pointer;color:inherit}
+a{color:inherit;text-decoration:none}
+svg{display:block}
+.ic{display:inline-flex;width:16px;height:16px}
+.ic svg{width:16px;height:16px}
+
+/* ---------- top ---------- */
+.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--canvas) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 22px}
+.top-main{display:flex;align-items:center;gap:14px}
+.wordmark{font-weight:800;font-size:16px;letter-spacing:-.02em;margin-right:6px}
+.wordmark span{color:var(--muted);font-weight:600}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--muted);padding:6px 16px;border-radius:8px;font-size:13px;font-weight:600;transition:all .12s}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px #0000000f}
+.top-actions{margin-left:14px;display:flex;gap:8px}
+.now{margin-left:auto;display:flex;align-items:baseline;gap:9px;padding-right:2px}
+.now-date{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.now-time{font-family:var(--mono);font-weight:600;font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.btn-solid{display:inline-flex;align-items:center;gap:7px;border:0;background:var(--ink);color:#fff;padding:8px 14px;border-radius:10px;font-size:13.5px;font-weight:600}
+.btn-solid:hover{background:#000}
+.btn-ghost{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);padding:8px 13px;border-radius:10px;font-size:13px;font-weight:600}
+.btn-ghost:hover{background:var(--surface-2);color:var(--ink)}
+.btn-ghost.sm{padding:5px 11px;font-size:12.5px}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid var(--line-2);background:var(--surface);border-radius:9px;color:var(--ink-2)}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.icon-btn:disabled{opacity:.4;cursor:not-allowed;background:var(--surface)}
+
+.top-sub{display:flex;align-items:center;gap:10px;margin-top:12px}
+.range{font-weight:700;font-size:15px;letter-spacing:-.01em}
+.wk-tag{font-size:11.5px;font-weight:600;color:var(--ink-2);background:var(--surface-2);padding:3px 9px;border-radius:7px}
+.wk-tag.past{color:var(--muted)}
+.legend{margin-left:auto;display:flex;gap:13px}
+.legend .lg{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted)}
+.legend .d{width:7px;height:7px;border-radius:50%}
+.d.confirmed{background:var(--confirmed)}.d.pending{background:var(--pending)}
+.d.contacted{background:var(--contacted)}.d.viewed{background:var(--viewed)}
+
+/* ---------- stage ---------- */
+.stage{max-width:1160px;margin:0 auto;padding:20px 22px 40px}
+.foot-note{text-align:center;color:var(--muted);font-size:11.5px;margin-top:26px}
+.demo-badge{position:fixed;left:14px;bottom:14px;z-index:30;background:var(--ink);color:#fff;font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:999px;opacity:.82}
+.acct{border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:600;padding:6px 4px}
+.acct:hover{color:var(--ink)}
+
+/* ---------- inbox ---------- */
+.inbox{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:15px 16px;margin-bottom:18px}
+.inbox-head{display:flex;align-items:center;gap:9px;margin-bottom:13px}
+.inbox-head .t{font-weight:700;font-size:14.5px}
+.inbox-head .c{font-size:11.5px;font-weight:600;color:var(--ink-2);background:var(--surface-2);padding:2px 9px;border-radius:7px}
+.inbox-head .h{margin-left:auto;font-size:12px;color:var(--muted)}
+.inbox-scroll{display:flex;gap:11px;overflow-x:auto;padding-bottom:4px;margin:0 -2px;-webkit-overflow-scrolling:touch}
+.inbox-scroll::-webkit-scrollbar{height:6px}
+.inbox-scroll::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:3px}
+.ib-card{flex:0 0 236px;border:1px solid var(--line);border-radius:12px;padding:13px 14px;background:var(--surface);position:relative;display:flex;flex-direction:column}
+.ib-card:hover{border-color:var(--line-2)}
+.ib-top{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.ib-top .sdot{width:7px;height:7px;border-radius:50%;flex:none}
+.ib-top .stat{font-size:11.5px;font-weight:600;color:var(--ink-2)}
+.ib-card .ib-addr{font-weight:700;font-size:13.5px;line-height:1.35;margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em}
+.ib-card .ib-agent{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib-foot{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:13px}
+.link-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid var(--line);border-radius:8px;color:var(--ink-2)}
+.link-btn:hover{background:var(--surface-2);color:var(--ink)}
+.text-btn{border:0;background:transparent;color:var(--ink);font-weight:600;font-size:12.5px;padding:6px 0;display:inline-flex;align-items:center;gap:5px}
+.text-btn:hover{color:#000}
+.text-btn.muted{color:var(--ink-2)}
+.text-btn.muted:hover{color:var(--ink)}
+.stat-toggle{border:0;background:transparent;padding:2px 0;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.sched-btn{margin-left:auto;border:0;background:var(--ink);color:#fff;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:9px}
+.sched-btn:hover{background:#000}
+.ib-empty{color:var(--muted);font-size:12.5px;padding:4px 2px}
+
+/* ---------- week ---------- */
+.week{display:flex;gap:9px;overflow-x:auto;scroll-snap-type:x proximity;scroll-padding-left:2px;padding:2px 2px 8px;margin:0 -2px;-webkit-overflow-scrolling:touch}
+.week::-webkit-scrollbar{height:7px}
+.week::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:4px}
+.week::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+.day-col{flex:1 0 216px;scroll-snap-align:start;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;min-height:160px;display:flex;flex-direction:column}
+.day-col.today{border-color:var(--ink)}
+.day-head{display:flex;align-items:baseline;justify-content:space-between;padding:7px 8px 5px}
+.day-head .wd{font-size:10.5px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.day-head .dn{font-weight:700;font-size:16px}
+.day-col.today .dn{color:var(--ink)}
+.day-col.past{background:var(--canvas)}
+.day-col.past .day-head .wd,.day-col.past .day-head .dn{color:var(--muted)}
+.day-col.past .vrow .va{color:var(--ink-2)}
+.past-toggle{flex:0 0 58px;scroll-snap-align:start;background:var(--surface);border:1px dashed var(--line-2);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:var(--muted);font-size:11px;font-weight:600;line-height:1.35;text-align:center;padding:10px 4px}
+.past-toggle:hover{background:var(--surface-2);color:var(--ink-2);border-color:var(--muted)}
+.past-toggle .ic{width:15px;height:15px}
+.route-hint{margin:0 6px 6px;font-size:10.5px;font-weight:600;color:var(--ink-2);display:flex;align-items:center;gap:5px;cursor:pointer}
+.route-hint.clash{color:var(--pending)}
+.route-hint .rl{width:12px;height:1px;background:currentColor;opacity:.5}
+.vlist{display:flex;flex-direction:column;gap:1px;padding:2px}
+.vrow{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;border:0;background:transparent;width:100%;text-align:left}
+.vrow:hover{background:var(--surface-2)}
+.vrow .sdot{width:7px;height:7px;border-radius:50%;flex:none}
+.vrow .vt{font-family:var(--mono);font-size:11.5px;font-weight:500;color:var(--ink-2);flex:none;font-variant-numeric:tabular-nums}
+.vrow .va{font-size:12.5px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vrow.viewed .va{color:var(--muted)}
+.empty-day{color:var(--muted);font-size:11.5px;text-align:center;padding:16px 0;opacity:.6}
+.sdot.confirmed{background:var(--confirmed)}.sdot.pending{background:var(--pending)}
+.sdot.contacted{background:var(--contacted)}.sdot.viewed{background:var(--viewed)}
+
+/* ---------- day (journey) ---------- */
+.day-view{max-width:600px;margin:0 auto}
+.dv-title{font-weight:800;font-size:24px;letter-spacing:-.02em}
+.dv-meta{color:var(--muted);font-size:13px;margin-top:3px}
+.journey{margin-top:22px;position:relative}
+.stop{position:relative;padding-left:30px}
+.stop .node{position:absolute;left:5px;top:6px;width:11px;height:11px;border-radius:50%;background:var(--surface);border:2.5px solid var(--ink);z-index:2}
+.stop .line{position:absolute;left:10px;top:14px;bottom:-4px;width:1.5px;background:var(--line-2);z-index:1}
+.stop:last-child .line{display:none}
+.stop-card{border:1px solid var(--line);border-radius:13px;background:var(--surface);padding:14px 15px;margin-bottom:6px}
+.sc-top{display:flex;align-items:center;gap:10px}
+.sc-time{font-family:var(--mono);font-weight:600;font-size:14px;font-variant-numeric:tabular-nums}
+.sc-addr{font-weight:700;font-size:16px;letter-spacing:-.01em;margin:8px 0 2px}
+.sc-agent{color:var(--muted);font-size:12.5px}
+.sc-actions{display:flex;align-items:center;gap:6px;margin-top:12px;flex-wrap:wrap}
+.chip-btn.copied,.link-btn.copied{color:var(--confirmed);border-color:#Bfe3ce}
+.chip-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:6px 11px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.chip-btn:hover{background:var(--surface-2);color:var(--ink)}
+.chip-btn.next{color:var(--ink)}
+.chip-btn.back{margin-left:auto;border:0;background:transparent;color:var(--muted);padding:6px 4px}
+.chip-btn.back:hover{color:var(--ink-2)}
+
+.leg{position:relative;padding-left:30px;margin:5px 0 9px}
+.leg .lline{position:absolute;left:10px;top:0;bottom:0;width:1.5px;background:var(--line-2);z-index:1}
+.leg-inner{display:inline-flex;align-items:center;gap:11px;padding:6px 6px 6px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.leg-inner.clash{border-color:#F1C7C4;background:var(--tint-clash)}
+.modes{display:inline-flex;background:var(--surface-2);border-radius:8px;padding:2px}
+.leg-inner.clash .modes{background:#F5DAD7}
+.modes button{border:0;background:transparent;color:var(--muted);font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:6px}
+.modes button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px #0000000f}
+.leg-dur{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;padding-right:5px}
+.leg-inner.clash .leg-dur{color:var(--pending)}
+.leg-warn{font-size:11.5px;font-weight:600;color:var(--pending);margin-top:6px;padding-left:2px}
+
+/* ---------- sheets ---------- */
+.scrim{position:fixed;inset:0;background:#17191c55;backdrop-filter:blur(2px);display:none;align-items:flex-end;justify-content:center;z-index:40}
+.scrim.open{display:flex}
+.sheet{background:var(--surface);width:100%;max-width:440px;border-radius:20px 20px 0 0;padding:20px 20px 22px;box-shadow:0 -10px 50px #0002}
+@media(min-width:640px){.scrim{align-items:center}.sheet{border-radius:18px}}
+.sheet-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:3px}
+.sheet h2{font-weight:800;font-size:19px;letter-spacing:-.02em;margin:0}
+.sheet .hint{color:var(--muted);font-size:12.5px;margin:0 0 16px}
+.sheet .close{border:0;background:var(--surface-2);color:var(--ink-2);width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center}
+.sheet .close:hover{color:var(--ink)}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:6px}
+.field label .opt{color:var(--muted);font-weight:500}
+.field input{width:100%;border:1px solid var(--line-2);background:var(--surface);border-radius:10px;padding:11px 12px;font-size:14px;font-family:inherit;color:var(--ink)}
+.field input::placeholder{color:var(--muted)}
+.field input:focus{outline:none;border-color:var(--ink)}
+.with-ic{position:relative}
+.with-ic input{padding-left:36px}
+.with-ic .fic{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.note{font-size:11px;color:var(--muted);margin-top:6px}
+.note.accent{color:var(--contacted)}
+.status-pick{display:flex;gap:9px}
+.status-pick button{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line-2);background:var(--surface);border-radius:10px;padding:11px;font-weight:600;font-size:13px;color:var(--muted)}
+.status-pick button .d{width:8px;height:8px;border-radius:50%}
+.status-pick button.on{border-color:var(--ink);color:var(--ink)}
+.sheet-actions{display:flex;gap:10px;margin-top:18px}
+.btn-cancel{flex:1;border:1px solid var(--line-2);background:var(--surface);border-radius:11px;padding:12px;font-weight:600;color:var(--ink-2)}
+.btn-cancel:hover{background:var(--surface-2)}
+.btn-save{flex:2;border:0;background:var(--ink);color:#fff;border-radius:11px;padding:12px;font-weight:600}
+.btn-save:hover{background:#000}
+
+.hist-list{max-height:52vh;overflow:auto;margin-top:4px}
+.hist-item{display:flex;align-items:center;gap:11px;padding:11px 2px;border-bottom:1px solid var(--line)}
+.hist-item:last-child{border-bottom:0}
+.hist-item .sdot{width:7px;height:7px;border-radius:50%;flex:none}
+.hist-item .hi-main{flex:1;min-width:0}
+.hist-item .hi-addr{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-item .hi-meta{font-size:11.5px;color:var(--muted);font-family:var(--mono);font-variant-numeric:tabular-nums}
+.hist-empty{color:var(--muted);font-size:13px;text-align:center;padding:26px 0}
+
+@media(max-width:820px){
+  .day-col{flex:0 0 84%;min-height:0}
+  .stage{padding:14px 12px 36px}
+  .now-date{display:none}
+}
+@media(max-width:560px){
+  .top{padding:10px 13px}
+  .top-main{gap:9px}
+  .wordmark{display:none}
+  .top-actions{margin-left:8px;gap:7px}
+  .btn-ghost .lbl{display:none}          /* 历史 收成纯图标 */
+  .btn-ghost{padding:8px 10px}
+  .now{gap:0}
+  .seg button{padding:6px 14px}
+  .inbox{padding:13px 13px}
+  .ib-card{flex:0 0 78%}
+  .day-view .dv-title{font-size:21px}
+  .sc-addr{font-size:15px}
+  .chip-btn{padding:8px 12px}            /* 触控目标更大 */
+  .sched-btn{padding:9px 14px}
+  .range{font-size:14px}
+}
+</style>
+
+<header class="top">
+  <div class="top-main">
+    <div class="wordmark">Viewings <span>· 看房</span></div>
+    <nav class="seg" id="viewSeg">
+      <button data-v="week" class="on">周</button>
+      <button data-v="day">日</button>
+    </nav>
+    <div class="now">
+      <span class="now-date" id="nowDate"></span>
+      <span class="now-time" id="nowTime"></span>
+    </div>
+    <div class="top-actions">
+      <button class="btn-ghost" id="openHist"><span class="ic">SVG_ARCHIVE</span><span class="lbl">历史</span></button>
+      <button class="btn-solid" id="openAdd"><span class="ic">SVG_PLUS</span><span class="lbl">加看房</span></button>
+    </div>
+  </div>
+  <div class="top-sub">
+    <button class="icon-btn" id="prev"><span class="ic">SVG_CHEVL</span></button>
+    <button class="icon-btn" id="next"><span class="ic">SVG_CHEVR</span></button>
+    <span class="range" id="rangeLabel"></span>
+  </div>
+</header>
+
+<div class="stage">
+  <div id="inboxBar"></div>
+  <div id="view"></div>
+  <div class="foot-note">路程时间为估算 · 接入 Google Maps 后显示实时路线</div>
+</div>
+
+<!-- add sheet -->
+<div class="scrim" id="scrim">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div><h2>加一套房</h2></div>
+      <button class="close" id="closeAdd"><span class="ic">SVG_X</span></button>
+    </div>
+    <p class="hint">看中了就先记下来 · 只要地址，时间等定了再补。</p>
+    <div class="field">
+      <label>房产地址</label>
+      <div class="with-ic"><span class="fic ic">SVG_PIN</span><input id="f-addr" placeholder="输入伦敦地址…"></div>
+      <div class="note accent">接入后：输入即自动补全，并抓取坐标用于算路线</div>
+    </div>
+    <div class="field">
+      <label>房源链接 <span class="opt">· Rightmove / Zoopla</span></label>
+      <div class="with-ic"><span class="fic ic">SVG_LINK</span><input id="f-link" placeholder="粘贴链接…"></div>
+    </div>
+    <div class="field">
+      <label>中介 / 房东 <span class="opt">· 选填</span></label>
+      <input id="f-agent" placeholder="方便记得该催谁">
+    </div>
+    <div class="field">
+      <label>看房时间 <span class="opt">· 选填，定了再填</span></label>
+      <div class="two"><input id="f-date" type="date"><input id="f-time" type="time"></div>
+      <div class="note">不填 → 进「待安排」；填了 → 直接排上日历</div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn-cancel" id="cancelAdd">取消</button>
+      <button class="btn-save" id="saveAdd">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- schedule sheet -->
+<div class="scrim" id="schedScrim">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div><h2>排入日程</h2></div>
+      <button class="close" id="closeSched"><span class="ic">SVG_X</span></button>
+    </div>
+    <p class="hint" id="schedAddr">—</p>
+    <div class="field">
+      <label>看房时间</label>
+      <div class="two"><input id="s-date" type="date"><input id="s-time" type="time"></div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn-cancel" id="cancelSched">取消</button>
+      <button class="btn-save" id="saveSched">排上日历</button>
+    </div>
+  </div>
+</div>
+
+<!-- history sheet -->
+<div class="scrim" id="histScrim">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div><h2>历史看房</h2></div>
+      <button class="close" id="closeHist"><span class="ic">SVG_X</span></button>
+    </div>
+    <p class="hint">三周窗口之外的看房都收在这里 · 不会删除，随时可查。</p>
+    <div id="histList" class="hist-list"></div>
+  </div>
+</div>
+
+<!-- login gate (only shown when Supabase is configured) -->
+<div class="scrim" id="loginScrim">
+  <div class="sheet" style="max-width:400px">
+    <div class="sheet-head"><div><h2>登录</h2></div></div>
+    <p class="hint">输入邮箱，我们会发一封登录链接给你，点开即可进入（无需密码）。</p>
+    <div class="field">
+      <label>邮箱</label>
+      <div class="with-ic"><span class="fic ic">SVG_PIN</span><input id="login-email" type="email" placeholder="you@example.com"></div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn-save" id="sendLink" style="flex:1">发送登录链接</button>
+    </div>
+    <p class="note" id="loginMsg" style="text-align:center"></p>
+  </div>
+</div>
+
+<span id="demoBadge" class="demo-badge" style="display:none">演示模式 · 数据仅存本地</span>
+
+<script>
+/* ================================================================
+   CONFIG — 把你的三把钥匙填在这里就能从「演示模式」切换到「真实多人模式」
+   拿钥匙的步骤见随附的《配置指南》。三个都留空 = 演示模式（本地假数据）。
+   ================================================================ */
+const CONFIG={
+  SUPABASE_URL:"https://cpdvncweyfkcjzhtwgec.supabase.co/",        // 例：https://abcd1234.supabase.co
+  SUPABASE_ANON_KEY:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZHZuY3dleWZrY2p6aHR3Z2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDU0NDMsImV4cCI6MjA5OTE4MTQ0M30.3jnRpDqqC74vAtlrmEoExCtWSn4D9niuGEY6smE_p40",   // Supabase 项目的 anon public key
+  GOOGLE_MAPS_KEY:"AIzaSyBWzEewC_jNUGxCC3qvy__kGJwxBKdF39g"      // Google Maps API Key（可选，用于真实路线+地址补全）
+};
+const USE_DB=!!(CONFIG.SUPABASE_URL&&CONFIG.SUPABASE_ANON_KEY);
+const sb=USE_DB?window.supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY):null;
+let MAPS_READY=false;
+
+/* ---------------- icons ---------------- */
+const IC={
+  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c4-4.5 7-8 7-11a7 7 0 1 0-14 0c0 3 3 6.5 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>',
+  link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-8.5 8.5"/><path d="M18 13.5V19a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5.5"/></svg>',
+  map:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3.5 6.2v13.3L9 17.3l6 2.2 5.5-2.2V3.8L15 6 9 4z"/><path d="M9 4v13.3"/><path d="M15 6v13.5"/></svg>',
+  chevL:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6.5 9 12l5.5 5.5"/></svg>',
+  chevR:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6.5 15 12l-5.5 5.5"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5v13"/><path d="M5.5 12h13"/></svg>',
+  archive:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="4" rx="1.2"/><path d="M5.2 8.5V18a2 2 0 0 0 2 2h9.6a2 2 0 0 0 2-2V8.5"/><path d="M10 12.5h4"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.2"/><path d="M6.5 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v.5"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>'
+};
+function inject(){
+  const map={SVG_ARCHIVE:IC.archive,SVG_PLUS:IC.plus,SVG_CHEVL:IC.chevL,SVG_CHEVR:IC.chevR,SVG_X:IC.x,SVG_PIN:IC.pin,SVG_LINK:IC.link};
+  document.querySelectorAll('.ic').forEach(el=>{const k=el.textContent.trim();if(map[k])el.innerHTML=map[k];});
+}
+
+/* ---------------- date utils ---------------- */
+const WD_EN=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const WD=["周一","周二","周三","周四","周五","周六","周日"];
+const CNmonth=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+function mondayOf(d){const x=new Date(d);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);x.setHours(0,0,0,0);return x;}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function cnDate(d){return (d.getMonth()+1)+"月"+d.getDate()+"号";}
+const MON=mondayOf(new Date());
+
+/* ---------------- data ---------------- */
+let idc=1;
+function mk(dOffset,time,addr,agent,link,status,lat,lng){return {id:idc++,date:iso(addDays(MON,dOffset)),time,dur:30,addr,agent,link,status,lat,lng};}
+function inbox(addr,agent,link,status,lat,lng){return {id:idc++,date:"",time:"",dur:30,addr,agent,link,status,lat,lng};}
+let VIEWINGS=[
+  inbox("31 Graham Rd, Hackney E8","Foxtons","https://rightmove.co.uk","contacted",51.5450,-0.0620),
+  inbox("7 Evering Rd, Stoke Newington N16","Private landlord","https://openrent.co.uk","contacted",51.5580,-0.0700),
+  inbox("52 Choumert Rd, Peckham SE15","Winkworth","https://zoopla.co.uk","pending",51.4690,-0.0710),
+  mk(0,"11:00","14 Mildmay Grove, Islington N1","Foxtons Islington","https://rightmove.co.uk","confirmed",51.5462,-0.0876),
+  mk(1,"10:00","27 Wilton Way, Hackney E8","Dexters","https://zoopla.co.uk","confirmed",51.5445,-0.0587),
+  mk(1,"11:15","6 Lauriston Rd, Victoria Park E9","Private landlord","https://openrent.co.uk","pending",51.5378,-0.0430),
+  mk(1,"12:30","3 Chatsworth Rd, Clapton E5","Stirling Ackroyd","https://rightmove.co.uk","pending",51.5560,-0.0489),
+  mk(2,"18:30","41 Bravington Rd, Maida Vale W9","Marsh & Parsons","https://zoopla.co.uk","pending",51.5300,-0.1970),
+  mk(3,"13:00","88 Bellenden Rd, Peckham SE15","Winkworth","https://rightmove.co.uk","confirmed",51.4670,-0.0680),
+  mk(3,"15:00","12 Lordship Ln, East Dulwich SE22","Roy Brooks","https://zoopla.co.uk","viewed",51.4560,-0.0720),
+  mk(5,"12:00","5 Broadway Market, Hackney E8","Keatons","https://rightmove.co.uk","confirmed",51.5385,-0.0620),
+  mk(-16,"14:00","9 Rye Lane, Peckham SE15","Acorn","https://zoopla.co.uk","viewed",51.4700,-0.0690),
+  mk(-14,"11:30","22 Kingsland Rd, Haggerston E2","Portico","https://rightmove.co.uk","viewed",51.5340,-0.0760),
+  mk(-9,"16:00","3 Morning Ln, Hackney Central E9","Foxtons","https://zoopla.co.uk","viewed",51.5460,-0.0530),
+];
+
+/* ---------------- travel estimate (placeholder for Google Maps) ---------------- */
+function haversine(a,b){const R=6371,rad=x=>x*Math.PI/180;const dLat=rad(b.lat-a.lat),dLng=rad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
+const SPEED={walk:4.5,transit:16,drive:19};
+const MODE_LABEL={walk:"步行",transit:"地铁",drive:"开车"};
+function travelMin(a,b,mode){
+  if(MAPS_READY&&a.lat!=null&&b.lat!=null){
+    const key=`${a.lat},${a.lng}|${b.lat},${b.lng}|${mode}`;
+    if(dmCache[key]!=null)return dmCache[key];
+    fetchDM(a,b,mode,key);
+  }
+  const km=haversine(a,b);const base=(km/SPEED[mode])*60;return Math.max(mode==="walk"?4:6,Math.round(base+(mode==="transit"?6:2)));
+}
+function parseMin(t){const[h,m]=t.split(":").map(Number);return h*60+m;}
+function fmtMin(m){return m>=60?`${Math.floor(m/60)} 小时${m%60?` ${m%60} 分`:""}`:`${m} 分钟`;}
+
+/* ---------------- window ---------------- */
+const THIS_MON=mondayOf(new Date());
+const WIN_START=addDays(THIS_MON,-7);
+const WIN_END=addDays(THIS_MON,13);
+const WEEK_MONDAYS=[WIN_START,THIS_MON,addDays(THIS_MON,7)];
+function inWindow(dISO){const d=new Date(dISO+"T00:00:00");return d>=WIN_START&&d<=WIN_END;}
+function weekIndex(mon){return Math.round((mon-THIS_MON)/(7*864e5));}
+
+/* ---------------- state + helpers ---------------- */
+let mode="week",cursor=new Date(THIS_MON),dayCursor=null,legModes={},showPast=false;
+function isScheduled(v){return !!v.date&&!!v.time;}
+function forDate(dISO){return VIEWINGS.filter(v=>isScheduled(v)&&v.date===dISO).sort((a,b)=>parseMin(a.time)-parseMin(b.time));}
+function inboxList(){return VIEWINGS.filter(v=>!isScheduled(v));}
+function isToday(dISO){return dISO===iso(new Date());}
+function escapeH(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+/* ---------------- copy address ---------------- */
+function fallbackCopy(text,cb){const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.style.position="fixed";ta.style.top="-1000px";ta.style.opacity="0";document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,ta.value.length);try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);cb&&cb();}
+function copyAddr(text,btn){const cb=()=>flashCopied(btn);if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(cb).catch(()=>fallbackCopy(text,cb));}else{fallbackCopy(text,cb);}}
+function flashCopied(btn){if(!btn)return;btn.classList.add("copied");const label=btn.querySelector(".cp-label"),icon=btn.querySelector(".ic");let oldL,oldI;if(label){oldL=label.textContent;label.textContent="已复制";}if(icon){oldI=icon.innerHTML;icon.innerHTML=IC.check;}setTimeout(()=>{btn.classList.remove("copied");if(label&&oldL!=null)label.textContent=oldL;if(icon&&oldI!=null)icon.innerHTML=oldI;},1400);}
+function hasClash(vs){for(let i=0;i<vs.length-1;i++){const gap=parseMin(vs[i+1].time)-parseMin(vs[i].time)-vs[i].dur;const mv=travelMin(vs[i],vs[i+1],legModes[vs[i].id+"-"+vs[i+1].id]||"transit");if(mv>gap)return true;}return false;}
+
+/* ---------------- inbox ---------------- */
+function renderInbox(){
+  const list=inboxList();const bar=document.getElementById("inboxBar");
+  let h=`<div class="inbox"><div class="inbox-head"><span class="t">待安排</span><span class="c">${list.length} 套</span><span class="h">看中了、还没定时间的房子 · 时间定了点「排入日程」</span></div>`;
+  if(!list.length){h+=`<div class="ib-empty">暂时没有待安排的房子。看中一套就点右上角「加看房」先记下来。</div></div>`;bar.innerHTML=h;return;}
+  h+='<div class="inbox-scroll">';
+  list.forEach(v=>{
+    h+=`<div class="ib-card">
+      <div class="ib-addr">${escapeH(v.addr)}</div>
+      <div class="ib-agent">${escapeH(v.agent||"—")}</div>
+      <div class="ib-foot">
+        <a class="link-btn" href="${v.link}" target="_blank" title="房源链接"><span class="ic">${IC.link}</span></a>
+        <button class="link-btn" data-copyaddr="${v.id}" title="复制地址"><span class="ic">${IC.copy}</span></button>
+        <button class="sched-btn" data-ibsched="${v.id}">排入日程</button>
+      </div>
+    </div>`;
+  });
+  h+='</div></div>';bar.innerHTML=h;
+}
+
+/* ---------------- week ---------------- */
+function renderWeek(){
+  const weekDays=[...Array(7)].map((_,i)=>addDays(cursor,i));
+  const from=weekDays[0],to=weekDays[6];
+  document.getElementById("rangeLabel").textContent=`${cnDate(from)} – ${cnDate(to)}`;
+  const wi=weekIndex(cursor);
+  const todayD=new Date(iso(new Date())+"T00:00:00");
+  // build the strip: current week starts at today; earlier days fold to the left
+  let cells=[];
+  if(wi===0){
+    const ti=weekDays.findIndex(d=>+d===+todayD);
+    const past=ti>0?weekDays.slice(0,ti):[];
+    const forward=ti>=0?weekDays.slice(ti):weekDays;
+    if(past.length){
+      cells.push({toggle:true,n:past.length});
+      if(showPast)past.forEach(d=>cells.push({d}));
+    }
+    forward.forEach(d=>cells.push({d}));
+  }else{
+    weekDays.forEach(d=>cells.push({d}));
+  }
+  let h='<div class="week">';
+  cells.forEach(c=>{
+    if(c.toggle){
+      h+=`<button class="past-toggle" data-pasttoggle="1" title="本周已过的日子">
+        <span class="ic">${showPast?IC.chevR:IC.chevL}</span>
+        <span class="pt-label">${showPast?"收起":"过去的<br>日子"}</span>
+      </button>`;
+      return;
+    }
+    const d=c.d;const dISO=iso(d);const vs=forDate(dISO);const clash=hasClash(vs);
+    const wdName=WD_EN[(d.getDay()+6)%7];const past=d<todayD;
+    h+=`<div class="day-col ${isToday(dISO)?"today":""} ${past?"past":""}">
+      <div class="day-head"><span class="wd">${wdName}</span><span class="dn">${d.getDate()}</span></div>`;
+    if(vs.length>1)h+=`<div class="route-hint ${clash?"clash":""}" data-goday="${dISO}"><span class="rl"></span>${clash?"行程可能赶不及":vs.length+" 场 · 看行程"}</div>`;
+    h+='<div class="vlist">';
+    if(!vs.length)h+='<div class="empty-day">—</div>';
+    vs.forEach(v=>{h+=`<button class="vrow" data-card="${v.id}"><span class="vt">${v.time}</span><span class="va">${escapeH(v.addr)}</span></button>`;});
+    h+='</div></div>';
+  });
+  h+='</div>';document.getElementById("view").innerHTML=h;
+  requestAnimationFrame(()=>{
+    const wk=document.querySelector(".week");if(!wk)return;
+    const t=wk.querySelector(".day-col.today");
+    if(showPast&&t)wk.scrollLeft=Math.max(0,t.getBoundingClientRect().left-wk.getBoundingClientRect().left+wk.scrollLeft-4);
+    else wk.scrollLeft=0;
+  });
+}
+
+/* ---------------- day (journey) ---------------- */
+function renderDay(){
+  if(!dayCursor)dayCursor=iso(new Date());
+  const d=new Date(dayCursor+"T00:00:00");const vs=forDate(dayCursor);
+  document.getElementById("rangeLabel").textContent=cnDate(d);
+  let h=`<div class="day-view"><div class="dv-title">${WD[(d.getDay()+6)%7]} · ${cnDate(d)}</div><div class="dv-meta">${vs.length?`当天 ${vs.length} 场看房`:"当天没有安排"}</div>`;
+  if(!vs.length){h+=`<p style="color:var(--muted);margin-top:26px">这一天还空着。<button class="text-btn" id="dayAdd" style="margin-left:4px">加一场</button></p></div>`;document.getElementById("view").innerHTML=h;const da=document.getElementById("dayAdd");if(da)da.onclick=openAdd;return;}
+  h+='<div class="journey">';
+  vs.forEach((v,i)=>{
+    h+=`<div class="stop"><span class="node"></span><span class="line"></span>
+      <div class="stop-card">
+        <div class="sc-top"><span class="sc-time">${v.time}</span></div>
+        <div class="sc-addr">${escapeH(v.addr)}</div>
+        <div class="sc-agent">${escapeH(v.agent||"—")}</div>
+        <div class="sc-actions">
+          <a class="chip-btn" href="https://maps.google.com/?q=${encodeURIComponent(v.addr)}" target="_blank"><span class="ic">${IC.map}</span>地图</a>
+          <a class="chip-btn" href="${v.link}" target="_blank"><span class="ic">${IC.link}</span>房源</a>
+          <button class="chip-btn" data-copyaddr="${v.id}"><span class="ic">${IC.copy}</span><span class="cp-label">复制地址</span></button>
+          <button class="chip-btn back" data-unschedule="${v.id}">退回待安排</button>
+        </div>
+      </div></div>`;
+    if(i<vs.length-1){
+      const nxt=vs[i+1];const key=v.id+"-"+nxt.id;const m=legModes[key]||"transit";
+      const mv=travelMin(v,nxt,m);const gap=parseMin(nxt.time)-parseMin(v.time)-v.dur;const clash=mv>gap;
+      h+=`<div class="leg"><span class="lline"></span>
+        <div class="leg-inner ${clash?"clash":""}">
+          <span class="modes" data-leg="${key}">
+            <button data-m="walk" class="${m==="walk"?"on":""}">步行</button>
+            <button data-m="transit" class="${m==="transit"?"on":""}">地铁</button>
+            <button data-m="drive" class="${m==="drive"?"on":""}">开车</button>
+          </span>
+          <span class="leg-dur">${fmtMin(mv)}</span>
+        </div>
+        ${clash?`<div class="leg-warn">间隔约 ${fmtMin(Math.max(0,gap))} · 赶路需 ${fmtMin(mv)}，可能来不及</div>`:""}
+      </div>`;
+    }
+  });
+  h+='</div></div>';document.getElementById("view").innerHTML=h;
+}
+
+/* ---------------- dispatch + nav ---------------- */
+function render(){
+  document.querySelectorAll("#viewSeg button").forEach(b=>b.classList.toggle("on",b.dataset.v===mode));
+  renderInbox();
+  if(mode==="week")renderWeek();else renderDay();
+  updateNavBounds();
+}
+function updateNavBounds(){
+  const prev=document.getElementById("prev"),next=document.getElementById("next");
+  if(mode==="week"){prev.disabled=cursor<=WEEK_MONDAYS[0];next.disabled=cursor>=WEEK_MONDAYS[2];}
+  else{const d=new Date(dayCursor+"T00:00:00");prev.disabled=d<=WIN_START;next.disabled=d>=WIN_END;}
+}
+
+/* ---------------- events ---------------- */
+document.getElementById("viewSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;mode=b.dataset.v;showPast=false;if(mode==="day"&&!dayCursor)dayCursor=iso(new Date());render();});
+document.getElementById("prev").onclick=()=>step(-1);
+document.getElementById("next").onclick=()=>step(1);
+function step(dir){
+  showPast=false;
+  if(mode==="week"){const c=addDays(cursor,7*dir);if(c>=WEEK_MONDAYS[0]&&c<=WEEK_MONDAYS[2])cursor=c;}
+  else{const c=addDays(new Date(dayCursor+"T00:00:00"),dir);if(c>=WIN_START&&c<=WIN_END)dayCursor=iso(c);}
+  render();
+}
+document.getElementById("view").addEventListener("click",e=>{
+  const pt=e.target.closest("[data-pasttoggle]");if(pt){showPast=!showPast;renderWeek();return;}
+  const goday=e.target.closest("[data-goday]");if(goday){dayCursor=goday.dataset.goday;mode="day";render();return;}
+  const card=e.target.closest("[data-card]");if(card){dayCursor=VIEWINGS.find(v=>v.id==card.dataset.card).date;mode="day";render();return;}
+  const uns=e.target.closest("[data-unschedule]");if(uns){patchViewing(uns.dataset.unschedule,{date:"",time:""}).then(()=>{mode="week";render();});return;}
+  const cp=e.target.closest("[data-copyaddr]");if(cp){const v=VIEWINGS.find(x=>x.id==cp.dataset.copyaddr);if(v)copyAddr(v.addr,cp);return;}
+  const legBtn=e.target.closest(".modes button");if(legBtn){legModes[legBtn.parentElement.dataset.leg]=legBtn.dataset.m;render();return;}
+});
+document.getElementById("inboxBar").addEventListener("click",e=>{
+  const cp=e.target.closest("[data-copyaddr]");if(cp){const v=VIEWINGS.find(x=>x.id==cp.dataset.copyaddr);if(v)copyAddr(v.addr,cp);return;}
+  const sched=e.target.closest("[data-ibsched]");if(sched){openSchedule(sched.dataset.ibsched);return;}
+});
+
+/* ---------------- add sheet ---------------- */
+const scrim=document.getElementById("scrim");
+let addPlace=null,acAttached=false;
+function attachAutocomplete(){
+  if(acAttached||!MAPS_READY)return;acAttached=true;
+  const ac=new google.maps.places.Autocomplete(document.getElementById("f-addr"),{fields:["geometry","formatted_address"],componentRestrictions:{country:"gb"}});
+  ac.addListener("place_changed",()=>{const p=ac.getPlace();if(p&&p.geometry){addPlace={addr:p.formatted_address,lat:p.geometry.location.lat(),lng:p.geometry.location.lng()};document.getElementById("f-addr").value=p.formatted_address;}});
+}
+function openAdd(){addPlace=null;document.getElementById("f-date").value=(mode==="day"&&dayCursor)?dayCursor:"";document.getElementById("f-time").value="";scrim.classList.add("open");attachAutocomplete();}
+document.getElementById("openAdd").onclick=openAdd;
+document.getElementById("cancelAdd").onclick=()=>scrim.classList.remove("open");
+document.getElementById("closeAdd").onclick=()=>scrim.classList.remove("open");
+scrim.addEventListener("click",e=>{if(e.target===scrim)scrim.classList.remove("open");});
+document.getElementById("saveAdd").onclick=async ()=>{
+  const addr=document.getElementById("f-addr").value.trim();
+  const date=document.getElementById("f-date").value,time=document.getElementById("f-time").value;
+  if(!addr){alert("地址总得填一下～");return;}
+  const scheduled=!!(date&&time);
+  const coord=(addPlace&&addPlace.addr===addr)?{lat:addPlace.lat,lng:addPlace.lng}:{lat:51.51+(Math.random()-.5)*0.06,lng:-0.11+(Math.random()-.5)*0.12};
+  const ok=await addViewing({date:scheduled?date:"",time:scheduled?time:"",dur:30,addr,agent:document.getElementById("f-agent").value.trim()||"",link:document.getElementById("f-link").value.trim()||"#",lat:coord.lat,lng:coord.lng});
+  if(!ok)return;
+  scrim.classList.remove("open");
+  ["f-addr","f-agent","f-link","f-date","f-time"].forEach(id=>document.getElementById(id).value="");
+  if(scheduled&&inWindow(date)){dayCursor=date;mode="day";}else if(scheduled){alert("这个日期在三周窗口之外，已存入「历史」。");}
+  render();
+};
+
+/* ---------------- schedule sheet ---------------- */
+const schedScrim=document.getElementById("schedScrim");let schedId=null;
+function openSchedule(id){const v=VIEWINGS.find(x=>x.id==id);if(!v)return;schedId=id;document.getElementById("schedAddr").textContent=v.addr;document.getElementById("s-date").value=iso(new Date());document.getElementById("s-time").value="";schedScrim.classList.add("open");}
+document.getElementById("cancelSched").onclick=()=>schedScrim.classList.remove("open");
+document.getElementById("closeSched").onclick=()=>schedScrim.classList.remove("open");
+schedScrim.addEventListener("click",e=>{if(e.target===schedScrim)schedScrim.classList.remove("open");});
+document.getElementById("saveSched").onclick=async ()=>{const date=document.getElementById("s-date").value,time=document.getElementById("s-time").value;if(!date||!time){alert("排入日程需要日期和时间哦");return;}await patchViewing(schedId,{date,time});schedScrim.classList.remove("open");if(inWindow(date)){dayCursor=date;mode="day";}else{alert("这个日期在三周窗口之外，已存入「历史」。");}render();};
+
+/* ---------------- history sheet ---------------- */
+const histScrim=document.getElementById("histScrim");
+document.getElementById("openHist").onclick=()=>{
+  const past=VIEWINGS.filter(v=>isScheduled(v)&&!inWindow(v.date)).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
+  const list=document.getElementById("histList");
+  if(!past.length){list.innerHTML='<div class="hist-empty">还没有历史看房</div>';}
+  else{list.innerHTML=past.map(v=>{const d=new Date(v.date+"T00:00:00");return `<div class="hist-item"><div class="hi-main"><div class="hi-addr">${escapeH(v.addr)}</div><div class="hi-meta">${d.getMonth()+1}/${d.getDate()} · ${v.time} · ${escapeH(v.agent||"—")}</div></div><a class="link-btn" href="${v.link}" target="_blank"><span class="ic">${IC.link}</span></a></div>`;}).join("");}
+  histScrim.classList.add("open");
+};
+document.getElementById("closeHist").onclick=()=>histScrim.classList.remove("open");
+histScrim.addEventListener("click",e=>{if(e.target===histScrim)histScrim.classList.remove("open");});
+
+/* ================================================================
+   Supabase data layer + auth + realtime  (only active when USE_DB)
+   ================================================================ */
+function rowToV(r){return {id:r.id,date:r.date||"",time:r.time||"",dur:30,addr:r.addr,agent:r.agent||"",link:r.link||"#",lat:r.lat,lng:r.lng};}
+function vToRow(v){return {addr:v.addr,agent:v.agent||"",link:v.link||"#",date:v.date||null,time:v.time||null,lat:v.lat,lng:v.lng};}
+async function dbLoad(){const {data,error}=await sb.from("viewings").select("*");if(error){console.error(error);return;}VIEWINGS=data.map(rowToV);}
+async function addViewing(obj){
+  if(USE_DB){const {error}=await sb.from("viewings").insert(vToRow(obj));if(error){alert("保存失败："+error.message);return false;}await dbLoad();}
+  else{VIEWINGS.push({id:idc++,...obj});}
+  return true;
+}
+async function patchViewing(id,patch){
+  if(USE_DB){const p={...patch};if("date"in p)p.date=p.date||null;if("time"in p)p.time=p.time||null;const {error}=await sb.from("viewings").update(p).eq("id",id);if(error){alert("更新失败："+error.message);return;}await dbLoad();}
+  else{const v=VIEWINGS.find(x=>x.id==id);if(v)Object.assign(v,patch);}
+}
+function initRealtime(){
+  sb.channel("viewings-rt").on("postgres_changes",{event:"*",schema:"public",table:"viewings"},async()=>{await dbLoad();render();}).subscribe();
+}
+
+/* ---- auth (Magic Link) ---- */
+async function initAuth(){
+  const {data:{session}}=await sb.auth.getSession();
+  sb.auth.onAuthStateChange((_e,s)=>{ if(s)enterApp(); else showLogin(); });
+  if(session)enterApp(); else showLogin();
+}
+function showLogin(){document.getElementById("loginScrim").classList.add("open");}
+async function enterApp(){
+  document.getElementById("loginScrim").classList.remove("open");
+  await dbLoad();
+  initRealtime();
+  render();
+}
+async function sendMagicLink(){
+  const email=document.getElementById("login-email").value.trim();
+  const msg=document.getElementById("loginMsg");
+  if(!email){msg.textContent="请先填邮箱";return;}
+  const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.href.split("#")[0]}});
+  msg.textContent=error?("发送失败："+error.message):"登录链接已发到你的邮箱，去点开吧 ✉";
+}
+async function signOut(){await sb.auth.signOut();location.reload();}
+
+/* ================================================================
+   Google Maps (optional) — real travel times + address autocomplete
+   ================================================================ */
+const dmCache={},dmPending={};
+const GMODE={walk:"WALKING",transit:"TRANSIT",drive:"DRIVING"};
+function loadMaps(){
+  if(!CONFIG.GOOGLE_MAPS_KEY)return;
+  const s=document.createElement("script");
+  s.src=`https://maps.googleapis.com/maps/api/js?key=${CONFIG.GOOGLE_MAPS_KEY}&libraries=places&callback=onMapsReady`;
+  s.async=true;document.head.appendChild(s);
+}
+window.onMapsReady=function(){MAPS_READY=true;if(mode==="week")renderWeek();else renderDay();};
+function fetchDM(a,b,mode,key){
+  if(dmPending[key])return;dmPending[key]=1;
+  new google.maps.DistanceMatrixService().getDistanceMatrix(
+    {origins:[{lat:a.lat,lng:a.lng}],destinations:[{lat:b.lat,lng:b.lng}],travelMode:GMODE[mode]},
+    (res,status)=>{
+      try{const el=res.rows[0].elements[0];if(status==="OK"&&el.status==="OK"){dmCache[key]=Math.round(el.duration.value/60);}}catch(e){}
+      if(mode==="day"||true){ if(document.querySelector(".journey"))renderDay(); }
+    }
+  );
+}
+
+/* ---------------- live clock ---------------- */
+function updateClock(){
+  const n=new Date();
+  const dEl=document.getElementById("nowDate"),tEl=document.getElementById("nowTime");
+  if(dEl)dEl.textContent=`${WD[(n.getDay()+6)%7]} · ${cnDate(n)}`;
+  if(tEl)tEl.textContent=String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0");
+}
+setInterval(updateClock,1000);
+
+document.getElementById("sendLink").onclick=sendMagicLink;
+
+inject();
+updateClock();
+loadMaps();
+if(USE_DB){
+  document.querySelector(".top-actions").insertAdjacentHTML("beforeend",'<button class="acct" id="signOut">退出</button>');
+  document.getElementById("signOut").onclick=signOut;
+  initAuth();          // 显示登录 → 登录后加载云端数据 + 实时同步
+}else{
+  document.getElementById("demoBadge").style.display="";
+  render();            // 演示模式：本地假数据
+}
+</script>
