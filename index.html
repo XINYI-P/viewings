@@ -67,9 +67,11 @@ svg{display:block}
 /* ---------- stage ---------- */
 .stage{max-width:1160px;margin:0 auto;padding:20px 22px 40px}
 .foot-note{text-align:center;color:var(--muted);font-size:11.5px;margin-top:26px}
-.demo-badge{position:fixed;left:14px;bottom:14px;z-index:30;background:var(--ink);color:#fff;font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:999px;opacity:.82}
 .acct{border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:600;padding:6px 4px}
 .acct:hover{color:var(--ink)}
+.del-btn{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--pending);font-size:12.5px;font-weight:600;padding:6px 2px;margin-top:2px}
+.del-btn .ic{width:14px;height:14px}
+.del-btn:hover{opacity:.75}
 
 /* ---------- inbox ---------- */
 .inbox{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:15px 16px;margin-bottom:18px}
@@ -255,7 +257,6 @@ svg{display:block}
 <div class="stage">
   <div id="inboxBar"></div>
   <div id="view"></div>
-  <div class="foot-note">路程时间为估算 · 接入 Google Maps 后显示实时路线</div>
 </div>
 
 <!-- add sheet -->
@@ -269,7 +270,6 @@ svg{display:block}
     <div class="field">
       <label>房产地址</label>
       <div class="with-ic"><span class="fic ic">SVG_PIN</span><input id="f-addr" placeholder="输入伦敦地址…"></div>
-      <div class="note accent">接入后：输入即自动补全，并抓取坐标用于算路线</div>
     </div>
     <div class="field">
       <label>房源链接 <span class="opt">· Rightmove / Zoopla</span></label>
@@ -282,8 +282,8 @@ svg{display:block}
     <div class="field">
       <label>看房时间 <span class="opt">· 选填，定了再填</span></label>
       <div class="two"><input id="f-date" type="date"><input id="f-time" type="time"></div>
-      <div class="note">不填 → 进「待安排」；填了 → 直接排上日历</div>
     </div>
+    <button class="del-btn" id="delViewing" style="display:none"><span class="ic">SVG_X</span>删除这套房</button>
     <div class="sheet-actions">
       <button class="btn-cancel" id="cancelAdd">取消</button>
       <button class="btn-save" id="saveAdd">保存</button>
@@ -338,17 +338,15 @@ svg{display:block}
   </div>
 </div>
 
-<span id="demoBadge" class="demo-badge" style="display:none">演示模式 · 数据仅存本地</span>
-
 <script>
 /* ================================================================
    CONFIG — 把你的三把钥匙填在这里就能从「演示模式」切换到「真实多人模式」
    拿钥匙的步骤见随附的《配置指南》。三个都留空 = 演示模式（本地假数据）。
    ================================================================ */
 const CONFIG={
-  SUPABASE_URL:"https://cpdvncweyfkcjzhtwgec.supabase.co/",        // 例：https://abcd1234.supabase.co
-  SUPABASE_ANON_KEY:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZHZuY3dleWZrY2p6aHR3Z2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDU0NDMsImV4cCI6MjA5OTE4MTQ0M30.3jnRpDqqC74vAtlrmEoExCtWSn4D9niuGEY6smE_p40",   // Supabase 项目的 anon public key
-  GOOGLE_MAPS_KEY:"AIzaSyBWzEewC_jNUGxCC3qvy__kGJwxBKdF39g"      // Google Maps API Key（可选，用于真实路线+地址补全）
+  SUPABASE_URL:"https://cpdvncweyfkcjzhtwgec.supabase.co",
+  SUPABASE_ANON_KEY:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZHZuY3dleWZrY2p6aHR3Z2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDU0NDMsImV4cCI6MjA5OTE4MTQ0M30.3jnRpDqqC74vAtlrmEoExCtWSn4D9niuGEY6smE_p40",
+  GOOGLE_MAPS_KEY:"AIzaSyBWzEewC_jNUGxCC3qvy__kGJwxBKdF39g"
 };
 const USE_DB=!!(CONFIG.SUPABASE_URL&&CONFIG.SUPABASE_ANON_KEY);
 const sb=USE_DB?window.supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY):null;
@@ -365,7 +363,8 @@ const IC={
   archive:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="4" rx="1.2"/><path d="M5.2 8.5V18a2 2 0 0 0 2 2h9.6a2 2 0 0 0 2-2V8.5"/><path d="M10 12.5h4"/></svg>',
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg>',
   copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.2"/><path d="M6.5 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v.5"/></svg>',
-  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>'
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l4 4"/><path d="M4 20l4.5-1 9-9-3.5-3.5-9 9L4 20z"/></svg>'
 };
 function inject(){
   const map={SVG_ARCHIVE:IC.archive,SVG_PLUS:IC.plus,SVG_CHEVL:IC.chevL,SVG_CHEVR:IC.chevR,SVG_X:IC.x,SVG_PIN:IC.pin,SVG_LINK:IC.link};
@@ -407,13 +406,18 @@ let VIEWINGS=[
 function haversine(a,b){const R=6371,rad=x=>x*Math.PI/180;const dLat=rad(b.lat-a.lat),dLng=rad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
 const SPEED={walk:4.5,transit:16,drive:19};
 const MODE_LABEL={walk:"步行",transit:"地铁",drive:"开车"};
-function travelMin(a,b,mode){
-  if(MAPS_READY&&a.lat!=null&&b.lat!=null){
-    const key=`${a.lat},${a.lng}|${b.lat},${b.lng}|${mode}`;
-    if(dmCache[key]!=null)return dmCache[key];
+// 返回 {min, state}  state: 'ok'(真实) | 'pending'(计算中) | 'estimate'(粗估) | 'unknown'
+function travelInfo(a,b,mode){
+  if(MAPS_READY){
+    const key=`${a.addr}||${b.addr}||${mode}`;
+    if(dmCache[key]!=null){return dmCache[key]<0?{min:null,state:"unknown"}:{min:dmCache[key],state:"ok"};}
     fetchDM(a,b,mode,key);
+    return {min:null,state:"pending"};
   }
-  const km=haversine(a,b);const base=(km/SPEED[mode])*60;return Math.max(mode==="walk"?4:6,Math.round(base+(mode==="transit"?6:2)));
+  if(CONFIG.GOOGLE_MAPS_KEY)return {min:null,state:"pending"};   // 有 key、脚本还没加载完
+  // 完全没接地图 → 用坐标粗估（演示模式示例数据坐标是真实的）
+  const km=haversine(a,b);const base=(km/SPEED[mode])*60;
+  return {min:Math.max(mode==="walk"?4:6,Math.round(base+(mode==="transit"?6:2))),state:"estimate"};
 }
 function parseMin(t){const[h,m]=t.split(":").map(Number);return h*60+m;}
 function fmtMin(m){return m>=60?`${Math.floor(m/60)} 小时${m%60?` ${m%60} 分`:""}`:`${m} 分钟`;}
@@ -437,12 +441,12 @@ function escapeH(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;"
 function fallbackCopy(text,cb){const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.style.position="fixed";ta.style.top="-1000px";ta.style.opacity="0";document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,ta.value.length);try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);cb&&cb();}
 function copyAddr(text,btn){const cb=()=>flashCopied(btn);if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(cb).catch(()=>fallbackCopy(text,cb));}else{fallbackCopy(text,cb);}}
 function flashCopied(btn){if(!btn)return;btn.classList.add("copied");const label=btn.querySelector(".cp-label"),icon=btn.querySelector(".ic");let oldL,oldI;if(label){oldL=label.textContent;label.textContent="已复制";}if(icon){oldI=icon.innerHTML;icon.innerHTML=IC.check;}setTimeout(()=>{btn.classList.remove("copied");if(label&&oldL!=null)label.textContent=oldL;if(icon&&oldI!=null)icon.innerHTML=oldI;},1400);}
-function hasClash(vs){for(let i=0;i<vs.length-1;i++){const gap=parseMin(vs[i+1].time)-parseMin(vs[i].time)-vs[i].dur;const mv=travelMin(vs[i],vs[i+1],legModes[vs[i].id+"-"+vs[i+1].id]||"transit");if(mv>gap)return true;}return false;}
+function hasClash(vs){for(let i=0;i<vs.length-1;i++){const gap=parseMin(vs[i+1].time)-parseMin(vs[i].time);const t=travelInfo(vs[i],vs[i+1],legModes[vs[i].id+"-"+vs[i+1].id]||"transit");if(t.min!=null&&t.min>gap)return true;}return false;}
 
 /* ---------------- inbox ---------------- */
 function renderInbox(){
   const list=inboxList();const bar=document.getElementById("inboxBar");
-  let h=`<div class="inbox"><div class="inbox-head"><span class="t">待安排</span><span class="c">${list.length} 套</span><span class="h">看中了、还没定时间的房子 · 时间定了点「排入日程」</span></div>`;
+  let h=`<div class="inbox"><div class="inbox-head"><span class="t">待安排</span><span class="c">${list.length} 套</span></div>`;
   if(!list.length){h+=`<div class="ib-empty">暂时没有待安排的房子。看中一套就点右上角「加看房」先记下来。</div></div>`;bar.innerHTML=h;return;}
   h+='<div class="inbox-scroll">';
   list.forEach(v=>{
@@ -452,6 +456,7 @@ function renderInbox(){
       <div class="ib-foot">
         <a class="link-btn" href="${v.link}" target="_blank" title="房源链接"><span class="ic">${IC.link}</span></a>
         <button class="link-btn" data-copyaddr="${v.id}" title="复制地址"><span class="ic">${IC.copy}</span></button>
+        <button class="link-btn" data-edit="${v.id}" title="编辑"><span class="ic">${IC.edit}</span></button>
         <button class="sched-btn" data-ibsched="${v.id}">排入日程</button>
       </div>
     </div>`;
@@ -526,12 +531,17 @@ function renderDay(){
           <a class="chip-btn" href="https://maps.google.com/?q=${encodeURIComponent(v.addr)}" target="_blank"><span class="ic">${IC.map}</span>地图</a>
           <a class="chip-btn" href="${v.link}" target="_blank"><span class="ic">${IC.link}</span>房源</a>
           <button class="chip-btn" data-copyaddr="${v.id}"><span class="ic">${IC.copy}</span><span class="cp-label">复制地址</span></button>
+          <button class="chip-btn" data-edit="${v.id}"><span class="ic">${IC.edit}</span>编辑</button>
           <button class="chip-btn back" data-unschedule="${v.id}">退回待安排</button>
         </div>
       </div></div>`;
     if(i<vs.length-1){
       const nxt=vs[i+1];const key=v.id+"-"+nxt.id;const m=legModes[key]||"transit";
-      const mv=travelMin(v,nxt,m);const gap=parseMin(nxt.time)-parseMin(v.time)-v.dur;const clash=mv>gap;
+      const t=travelInfo(v,nxt,m);const gap=parseMin(nxt.time)-parseMin(v.time);const clash=(t.min!=null&&t.min>gap);
+      let durTxt;
+      if(t.state==="pending")durTxt='<span class="leg-dur" style="color:var(--muted)">计算中…</span>';
+      else if(t.state==="unknown")durTxt='<span class="leg-dur" style="color:var(--muted)">路程未知</span>';
+      else durTxt=`<span class="leg-dur">${t.state==="estimate"?"约 ":""}${fmtMin(t.min)}</span>`;
       h+=`<div class="leg"><span class="lline"></span>
         <div class="leg-inner ${clash?"clash":""}">
           <span class="modes" data-leg="${key}">
@@ -539,9 +549,9 @@ function renderDay(){
             <button data-m="transit" class="${m==="transit"?"on":""}">地铁</button>
             <button data-m="drive" class="${m==="drive"?"on":""}">开车</button>
           </span>
-          <span class="leg-dur">${fmtMin(mv)}</span>
+          ${durTxt}
         </div>
-        ${clash?`<div class="leg-warn">间隔约 ${fmtMin(Math.max(0,gap))} · 赶路需 ${fmtMin(mv)}，可能来不及</div>`:""}
+        ${clash?`<div class="leg-warn">两场间隔 ${fmtMin(Math.max(0,gap))} · 赶路需 ${fmtMin(t.min)}，可能来不及</div>`:""}
       </div>`;
     }
   });
@@ -577,22 +587,45 @@ document.getElementById("view").addEventListener("click",e=>{
   const card=e.target.closest("[data-card]");if(card){dayCursor=VIEWINGS.find(v=>v.id==card.dataset.card).date;mode="day";render();return;}
   const uns=e.target.closest("[data-unschedule]");if(uns){patchViewing(uns.dataset.unschedule,{date:"",time:""}).then(()=>{mode="week";render();});return;}
   const cp=e.target.closest("[data-copyaddr]");if(cp){const v=VIEWINGS.find(x=>x.id==cp.dataset.copyaddr);if(v)copyAddr(v.addr,cp);return;}
+  const ed=e.target.closest("[data-edit]");if(ed){openEdit(ed.dataset.edit);return;}
   const legBtn=e.target.closest(".modes button");if(legBtn){legModes[legBtn.parentElement.dataset.leg]=legBtn.dataset.m;render();return;}
 });
 document.getElementById("inboxBar").addEventListener("click",e=>{
   const cp=e.target.closest("[data-copyaddr]");if(cp){const v=VIEWINGS.find(x=>x.id==cp.dataset.copyaddr);if(v)copyAddr(v.addr,cp);return;}
+  const ed=e.target.closest("[data-edit]");if(ed){openEdit(ed.dataset.edit);return;}
   const sched=e.target.closest("[data-ibsched]");if(sched){openSchedule(sched.dataset.ibsched);return;}
 });
 
-/* ---------------- add sheet ---------------- */
+/* ---------------- add / edit sheet ---------------- */
 const scrim=document.getElementById("scrim");
-let addPlace=null,acAttached=false;
+let addPlace=null,acAttached=false,editingId=null;
 function attachAutocomplete(){
   if(acAttached||!MAPS_READY)return;acAttached=true;
   const ac=new google.maps.places.Autocomplete(document.getElementById("f-addr"),{fields:["geometry","formatted_address"],componentRestrictions:{country:"gb"}});
   ac.addListener("place_changed",()=>{const p=ac.getPlace();if(p&&p.geometry){addPlace={addr:p.formatted_address,lat:p.geometry.location.lat(),lng:p.geometry.location.lng()};document.getElementById("f-addr").value=p.formatted_address;}});
 }
-function openAdd(){addPlace=null;document.getElementById("f-date").value=(mode==="day"&&dayCursor)?dayCursor:"";document.getElementById("f-time").value="";scrim.classList.add("open");attachAutocomplete();}
+function fillForm(v){
+  document.getElementById("f-addr").value=v?v.addr:"";
+  document.getElementById("f-agent").value=v?(v.agent||""):"";
+  document.getElementById("f-link").value=(v&&v.link&&v.link!=="#")?v.link:"";
+  document.getElementById("f-date").value=v?(v.date||""):((mode==="day"&&dayCursor)?dayCursor:"");
+  document.getElementById("f-time").value=v?(v.time||""):"";
+}
+function openAdd(){
+  editingId=null;addPlace=null;
+  document.querySelector("#scrim h2").textContent="加一套房";
+  document.getElementById("delViewing").style.display="none";
+  fillForm(null);
+  scrim.classList.add("open");attachAutocomplete();
+}
+function openEdit(id){
+  const v=VIEWINGS.find(x=>x.id==id);if(!v)return;
+  editingId=id;addPlace=null;
+  document.querySelector("#scrim h2").textContent="编辑房子信息";
+  document.getElementById("delViewing").style.display="";
+  fillForm(v);
+  scrim.classList.add("open");attachAutocomplete();
+}
 document.getElementById("openAdd").onclick=openAdd;
 document.getElementById("cancelAdd").onclick=()=>scrim.classList.remove("open");
 document.getElementById("closeAdd").onclick=()=>scrim.classList.remove("open");
@@ -602,14 +635,29 @@ document.getElementById("saveAdd").onclick=async ()=>{
   const date=document.getElementById("f-date").value,time=document.getElementById("f-time").value;
   if(!addr){alert("地址总得填一下～");return;}
   const scheduled=!!(date&&time);
-  const coord=(addPlace&&addPlace.addr===addr)?{lat:addPlace.lat,lng:addPlace.lng}:{lat:51.51+(Math.random()-.5)*0.06,lng:-0.11+(Math.random()-.5)*0.12};
-  const ok=await addViewing({date:scheduled?date:"",time:scheduled?time:"",dur:30,addr,agent:document.getElementById("f-agent").value.trim()||"",link:document.getElementById("f-link").value.trim()||"#",lat:coord.lat,lng:coord.lng});
-  if(!ok)return;
+  const agent=document.getElementById("f-agent").value.trim()||"";
+  const link=document.getElementById("f-link").value.trim()||"#";
+  if(editingId){
+    await patchViewing(editingId,{addr,agent,link,date:scheduled?date:"",time:scheduled?time:""});
+  }else{
+    const coord=(addPlace&&addPlace.addr===addr)?{lat:addPlace.lat,lng:addPlace.lng}:{lat:51.51+(Math.random()-.5)*0.06,lng:-0.11+(Math.random()-.5)*0.12};
+    const ok=await addViewing({date:scheduled?date:"",time:scheduled?time:"",dur:30,addr,agent,link,lat:coord.lat,lng:coord.lng});
+    if(!ok)return;
+  }
   scrim.classList.remove("open");
-  ["f-addr","f-agent","f-link","f-date","f-time"].forEach(id=>document.getElementById(id).value="");
-  if(scheduled&&inWindow(date)){dayCursor=date;mode="day";}else if(scheduled){alert("这个日期在三周窗口之外，已存入「历史」。");}
+  if(scheduled&&inWindow(date)){dayCursor=date;mode="day";}
+  else if(scheduled){alert("这个日期在三周窗口之外，已存入「历史」。");}
+  else{mode="week";}
   render();
 };
+document.getElementById("delViewing").onclick=()=>deleteViewing(editingId);
+async function deleteViewing(id){
+  if(!id)return;
+  if(!confirm("确定删除这套房？删除后无法恢复。"))return;
+  if(USE_DB){const {error}=await sb.from("viewings").delete().eq("id",id);if(error){alert("删除失败："+error.message);return;}await dbLoad();}
+  else{VIEWINGS=VIEWINGS.filter(v=>v.id!=id);}
+  scrim.classList.remove("open");mode="week";render();
+}
 
 /* ---------------- schedule sheet ---------------- */
 const schedScrim=document.getElementById("schedScrim");let schedId=null;
@@ -646,7 +694,9 @@ async function patchViewing(id,patch){
   if(USE_DB){const p={...patch};if("date"in p)p.date=p.date||null;if("time"in p)p.time=p.time||null;const {error}=await sb.from("viewings").update(p).eq("id",id);if(error){alert("更新失败："+error.message);return;}await dbLoad();}
   else{const v=VIEWINGS.find(x=>x.id==id);if(v)Object.assign(v,patch);}
 }
+let appReady=false,rtStarted=false;
 function initRealtime(){
+  if(rtStarted)return;rtStarted=true;
   sb.channel("viewings-rt").on("postgres_changes",{event:"*",schema:"public",table:"viewings"},async()=>{await dbLoad();render();}).subscribe();
 }
 
@@ -658,10 +708,12 @@ async function initAuth(){
 }
 function showLogin(){document.getElementById("loginScrim").classList.add("open");}
 async function enterApp(){
-  document.getElementById("loginScrim").classList.remove("open");
-  await dbLoad();
+  if(appReady){document.getElementById("loginScrim").classList.remove("open");return;}
+  await dbLoad();          // 先把云端数据拉回来
+  appReady=true;           // 数据就绪后才允许渲染
   initRealtime();
   render();
+  document.getElementById("loginScrim").classList.remove("open");   // 最后再关登录遮罩
 }
 async function sendMagicLink(){
   const email=document.getElementById("login-email").value.trim();
@@ -683,14 +735,16 @@ function loadMaps(){
   s.src=`https://maps.googleapis.com/maps/api/js?key=${CONFIG.GOOGLE_MAPS_KEY}&libraries=places&callback=onMapsReady`;
   s.async=true;document.head.appendChild(s);
 }
-window.onMapsReady=function(){MAPS_READY=true;if(mode==="week")renderWeek();else renderDay();};
+window.onMapsReady=function(){MAPS_READY=true;if(!appReady)return;if(mode==="week")renderWeek();else renderDay();};
 function fetchDM(a,b,mode,key){
   if(dmPending[key])return;dmPending[key]=1;
   new google.maps.DistanceMatrixService().getDistanceMatrix(
-    {origins:[{lat:a.lat,lng:a.lng}],destinations:[{lat:b.lat,lng:b.lng}],travelMode:GMODE[mode]},
+    {origins:[a.addr],destinations:[b.addr],travelMode:GMODE[mode]},
     (res,status)=>{
-      try{const el=res.rows[0].elements[0];if(status==="OK"&&el.status==="OK"){dmCache[key]=Math.round(el.duration.value/60);}}catch(e){}
-      if(mode==="day"||true){ if(document.querySelector(".journey"))renderDay(); }
+      let ok=false;
+      try{const el=res.rows[0].elements[0];if(status==="OK"&&el.status==="OK"){dmCache[key]=Math.round(el.duration.value/60);ok=true;}}catch(e){}
+      if(!ok)dmCache[key]=-1;   // 标记为"路程未知"，不再反复请求
+      if(appReady&&document.querySelector(".journey"))renderDay();
     }
   );
 }
@@ -710,11 +764,12 @@ inject();
 updateClock();
 loadMaps();
 if(USE_DB){
+  VIEWINGS=[];           // 真实模式：先清空演示假数据，避免登录前后闪现
   document.querySelector(".top-actions").insertAdjacentHTML("beforeend",'<button class="acct" id="signOut">退出</button>');
   document.getElementById("signOut").onclick=signOut;
-  initAuth();          // 显示登录 → 登录后加载云端数据 + 实时同步
+  initAuth();            // 显示登录 → 登录后加载云端数据 + 实时同步
 }else{
-  document.getElementById("demoBadge").style.display="";
-  render();            // 演示模式：本地假数据
+  appReady=true;
+  render();              // 演示模式：本地假数据
 }
 </script>
