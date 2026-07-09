@@ -325,14 +325,14 @@ svg{display:block}
 <!-- login gate (only shown when Supabase is configured) -->
 <div class="scrim" id="loginScrim">
   <div class="sheet" style="max-width:400px">
-    <div class="sheet-head"><div><h2>登录</h2></div></div>
-    <p class="hint">输入邮箱，我们会发一封登录链接给你，点开即可进入（无需密码）。</p>
+    <div class="sheet-head"><div><h2>输入密钥进入</h2></div></div>
+    <p class="hint">知道密钥的人即可进入。密钥会记住，平时无需反复输入。</p>
     <div class="field">
-      <label>邮箱</label>
-      <div class="with-ic"><span class="fic ic">SVG_PIN</span><input id="login-email" type="email" placeholder="you@example.com"></div>
+      <label>访问密钥</label>
+      <div class="with-ic"><span class="fic ic">SVG_PIN</span><input id="login-pass" type="password" placeholder="输入密钥…"></div>
     </div>
     <div class="sheet-actions">
-      <button class="btn-save" id="sendLink" style="flex:1">发送登录链接</button>
+      <button class="btn-save" id="enterBtn" style="flex:1">进入</button>
     </div>
     <p class="note" id="loginMsg" style="text-align:center"></p>
   </div>
@@ -346,7 +346,8 @@ svg{display:block}
 const CONFIG={
   SUPABASE_URL:"https://cpdvncweyfkcjzhtwgec.supabase.co",
   SUPABASE_ANON_KEY:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZHZuY3dleWZrY2p6aHR3Z2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDU0NDMsImV4cCI6MjA5OTE4MTQ0M30.3jnRpDqqC74vAtlrmEoExCtWSn4D9niuGEY6smE_p40",
-  GOOGLE_MAPS_KEY:"AIzaSyBWzEewC_jNUGxCC3qvy__kGJwxBKdF39g"
+  GOOGLE_MAPS_KEY:"AIzaSyBWzEewC_jNUGxCC3qvy__kGJwxBKdF39g",
+  SHARED_EMAIL:"team@viewings.app"   // 共享账号的固定邮箱（只是标识，不用改；密钥=这个账号的密码）
 };
 const USE_DB=!!(CONFIG.SUPABASE_URL&&CONFIG.SUPABASE_ANON_KEY);
 const sb=USE_DB?window.supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY):null;
@@ -715,12 +716,13 @@ async function enterApp(){
   render();
   document.getElementById("loginScrim").classList.remove("open");   // 最后再关登录遮罩
 }
-async function sendMagicLink(){
-  const email=document.getElementById("login-email").value.trim();
+async function enterWithPass(){
+  const pass=document.getElementById("login-pass").value;
   const msg=document.getElementById("loginMsg");
-  if(!email){msg.textContent="请先填邮箱";return;}
-  const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.href.split("#")[0]}});
-  msg.textContent=error?("发送失败："+error.message):"登录链接已发到你的邮箱，去点开吧 ✉";
+  if(!pass){msg.textContent="请输入密钥";return;}
+  msg.textContent="正在进入…";
+  const {error}=await sb.auth.signInWithPassword({email:CONFIG.SHARED_EMAIL,password:pass});
+  if(error)msg.textContent="密钥不对，再试试";   // 成功时 onAuthStateChange 会自动进入
 }
 async function signOut(){await sb.auth.signOut();location.reload();}
 
@@ -758,7 +760,8 @@ function updateClock(){
 }
 setInterval(updateClock,1000);
 
-document.getElementById("sendLink").onclick=sendMagicLink;
+document.getElementById("enterBtn").onclick=enterWithPass;
+document.getElementById("login-pass").addEventListener("keydown",e=>{if(e.key==="Enter")enterWithPass();});
 
 inject();
 updateClock();
